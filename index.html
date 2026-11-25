@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AION</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 600px;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            border-bottom: 1px solid #1e293b;
+            padding-bottom: 12px;
+        }
+        h1 { margin: 0; font-size: 1.5rem; letter-spacing: 2px; color: #38bdf8; }
+        button {
+            background-color: #0284c7;
+            color: white;
+            border: none;
+            padding: 12px 18px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        button:active { background-color: #0369a1; }
+        .btn-config { background-color: #334155; padding: 8px 12px; font-size: 0.85rem; }
+        input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 14px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            background-color: #1e293b;
+            color: white;
+            font-size: 1rem;
+            margin-bottom: 12px;
+        }
+        #config-panel {
+            display: none;
+            background: #1e293b;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        #result-box {
+            margin-top: 24px;
+            background: #1e293b;
+            padding: 18px;
+            border-radius: 8px;
+            line-height: 1.6;
+            display: none;
+        }
+        .sources { margin-top: 16px; font-size: 0.85rem; color: #94a3b8; }
+        .sources a { color: #38bdf8; text-decoration: none; display: block; margin-top: 6px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AION</h1>
+            <button class="btn-config" onclick="toggleConfig()">Clé API</button>
+        </header>
+
+        <div id="config-panel">
+            <input type="password" id="api-key-input" placeholder="Entrez votre clé Tavily (tvly-...)">
+            <button onclick="saveKey()">Sauvegarder localement</button>
+        </div>
+
+        <input type="text" id="query-input" placeholder="Posez votre question à AION...">
+        <button style="width: 100%;" onclick="searchAION()">Lancer l'investigation</button>
+
+        <div id="result-box">
+            <div id="answer-text"></div>
+            <div class="sources" id="sources-list"></div>
+        </div>
+    </div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+
+        window.onload = () => {
+            const savedKey = localStorage.getItem('aion_tavily_key');
+            if (!savedKey) {
+                document.getElementById('config-panel').style.display = 'block';
+            } else {
+                document.getElementById('api-key-input').value = savedKey;
+            }
+        };
+
+        function toggleConfig() {
+            const panel = document.getElementById('config-panel');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function saveKey() {
+            const key = document.getElementById('api-key-input').value.trim();
+            if (key) {
+                localStorage.setItem('aion_tavily_key', key);
+                document.getElementById('config-panel').style.display = 'none';
+                alert('Clé enregistrée en local sur cet appareil.');
+            }
+        }
+
+        async function searchAION() {
+            const apiKey = localStorage.getItem('aion_tavily_key');
+            const query = document.getElementById('query-input').value.trim();
+            const resultBox = document.getElementById('result-box');
+            const answerText = document.getElementById('answer-text');
+            const sourcesList = document.getElementById('sources-list');
+
+            if (!apiKey) {
+                alert('Veuillez renseigner votre clé API Tavily.');
+                toggleConfig();
+                return;
+            }
+            if (!query) return;
+
+            resultBox.style.display = 'block';
+            answerText.innerHTML = 'Investigation en cours...';
+            sourcesList.innerHTML = '';
+
+            try {
+                const response = await fetch('https://api.tavily.com/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        api_key: apiKey,
+                        query: query,
+                        search_depth: "advanced",
+                        include_answer: true,
+                        max_results: 5
+                    })
+                });
+
+                const data = await response.json();
+                answerText.innerText = data.answer || "Aucune synthèse générée.";
+                
+                if (data.results && data.results.length > 0) {
+                    sourcesList.innerHTML = '<strong>Sources mobilisées :</strong>';
+                    data.results.forEach(item => {
+                        sourcesList.innerHTML += `<a href="${item.url}" target="_blank">• ${item.title}</a>`;
+                    });
+                }
+            } catch (error) {
+                answerText.innerText = "Erreur de connexion avec l'API.";
+            }
+        }
+    </script>
+</body>
+</html>
